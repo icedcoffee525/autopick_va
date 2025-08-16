@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>VALORANT ランダムピック設定</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>🎲 VALORANT ランダムピック設定</h1>
+
+  <section class="player-section">
+    <h2>プレイヤー名を入力してください（最大5人）</h2>
+    <div class="player-inputs">
+      <input type="text" id="player0" placeholder="プレイヤー1">
+      <input type="text" id="player1" placeholder="プレイヤー2">
+      <input type="text" id="player2" placeholder="プレイヤー3">
+      <input type="text" id="player3" placeholder="プレイヤー4">
+      <input type="text" id="player4" placeholder="プレイヤー5">
+    </div>
+
+    <!-- ロール選択欄（動的に表示） -->
+    <div id="role-selects" class="role-selects"></div>
+  </section>
+
+  <section class="settings-section">
+    <div class="dropdowns">
+      <div>
+        <label>ロール設定:</label>
+        <select id="roleMode">
+          <option value="default">基本構成</option>
+          <option value="random">完全ランダム</option>
+          <option value="custom">ロール自由選択</option>
+        </select>
+      </div>
+      <div>
+        <label>縛り人数:</label>
+        <select id="constraintCount">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+    </div>
+
+    <button onclick="goToResultPage()">🎯 ルーレット開始！</button>
+  </section>
+
+
+
+  <script src="script.js" defer></script>
+</body>
+</html>
