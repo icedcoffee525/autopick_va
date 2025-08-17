@@ -88,6 +88,8 @@ function displayResults() {
   container.innerHTML = "";
 
   const allAgents = Object.values(roles).flat();
+  let availableAgents = [...allAgents]; // 被りを防ぐためコピー
+
   const allConstraints = [
     ...constraints.UR.map(c => ({ rarity: "UR", text: c })),
     ...constraints.SR.map(c => ({ rarity: "SR", text: c })),
@@ -98,6 +100,7 @@ function displayResults() {
   const selectedPlayers = [...playerNames];
   const constraintAssignments = [];
 
+  // --- 縛りの割り当て ---
   for (let i = 0; i < constraintCount; i++) {
     if (selectedPlayers.length === 0) break;
     const player = getRandomFromArray(selectedPlayers);
@@ -106,39 +109,59 @@ function displayResults() {
     selectedPlayers.splice(selectedPlayers.indexOf(player), 1);
   }
 
+  // --- エージェント割り当て ---
+  let roleOrder = [];
+  if (roleMode === "default") {
+    // 各ロールから1人ずつ + ランダムで1人
+    roleOrder = ["デュエリスト", "イニシエーター", "スモーク", "センチネル"];
+    if (playerNames.length > 4) {
+      roleOrder.push("random");
+    }
+  }
+
   playerNames.forEach((name, index) => {
     let agent;
+
     if (roleMode === "default") {
-      const roleKeys = Object.keys(roles);
-      const role = roleKeys[index % roleKeys.length];
-      agent = getRandomFromArray(roles[role]);
+      const role = roleOrder[index] || "random";
+      if (role === "random") {
+        agent = getRandomFromArray(availableAgents);
+      } else {
+        agent = getRandomFromArray(roles[role]);
+      }
     } else if (roleMode === "random") {
-      agent = getRandomFromArray(allAgents);
+      agent = getRandomFromArray(availableAgents);
     } else if (roleMode === "custom") {
-      const role = selectedRoles[index];
-      agent = getRandomFromArray(roles[role] || roles["デュエリスト"]); // 安全対策
+      let role = selectedRoles[index];
+      if (!role || role === "") {
+        // 未選択ならランダム
+        role = getRandomFromArray(Object.keys(roles));
+      }
+      agent = getRandomFromArray(roles[role]);
     }
+
+    // --- 被り防止 ---
+    availableAgents.splice(availableAgents.indexOf(agent), 1);
 
     const constraint = constraintAssignments.find(c => c.player === name);
 
     const card = document.createElement("div");
     card.className = "player-card";
 
-    // ★表示順序変更：画像→名前→キャラ→区切り線→縛り
-    const agentFileName = agent.replace("/", ""); // KAY/O → KAYO
-        card.innerHTML = `
-        <img src="images/${agentFileName}.png" alt="${agent}の画像">
-        <div><strong>${name}</strong></div>
-        <div>${agent}</div>
-        <hr>
-        ${constraint ? `
-            <div class="rarity ${constraint.rarity}">${constraint.rarity}</div>
-            <div class="constraint-text ${constraint.rarity}">${constraint.text}</div>
-        ` : `
-            <div class="constraint-text NONE">縛りなし</div>
-        `}
-    `;
+    const agentFileName = getSafeFileName(agent);
 
+    card.innerHTML = `
+      <img src="images/${agentFileName}.png" alt="${agent}の画像">
+      <div><strong>${name}</strong></div>
+      <div>${agent}</div>
+      <hr>
+      ${constraint ? `
+        <div class="rarity ${constraint.rarity}">${constraint.rarity}</div>
+        <div class="constraint-text ${constraint.rarity}">${constraint.text}</div>
+      ` : `
+        <div class="constraint-text NONE">縛りなし</div>
+      `}
+    `;
 
     container.appendChild(card);
   });
