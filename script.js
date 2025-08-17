@@ -49,7 +49,12 @@ function goToResultPage() {
     if (name !== "") {
       playerNames.push(name);
       if (roleMode === "custom") {
-        const role = document.getElementById(`role${i}`)?.value || "デュエリスト";
+        let role = document.getElementById(`role${i}`)?.value;
+        if (!role) {
+          // ロール未選択の場合はランダムで割り当て
+          const roleKeys = Object.keys(roles);
+          role = getRandomFromArray(roleKeys);
+        }
         selectedRoles.push(role);
       } else {
         selectedRoles.push(null);
@@ -81,15 +86,13 @@ function goBack() {
 
 function displayResults() {
   const playerNames = JSON.parse(localStorage.getItem("playerNames"));
-  const selectedRoles = JSON.parse(localStorage.getItem("selectedRoles"));
+  let selectedRoles = JSON.parse(localStorage.getItem("selectedRoles"));
   const roleMode = localStorage.getItem("roleMode");
   const constraintCount = parseInt(localStorage.getItem("constraintCount"));
   const container = document.getElementById("resultContainer");
   container.innerHTML = "";
 
   const allAgents = Object.values(roles).flat();
-  let availableAgents = [...allAgents]; // 被りを防ぐためコピー
-
   const allConstraints = [
     ...constraints.UR.map(c => ({ rarity: "UR", text: c })),
     ...constraints.SR.map(c => ({ rarity: "SR", text: c })),
@@ -100,7 +103,6 @@ function displayResults() {
   const selectedPlayers = [...playerNames];
   const constraintAssignments = [];
 
-  // --- 縛りの割り当て ---
   for (let i = 0; i < constraintCount; i++) {
     if (selectedPlayers.length === 0) break;
     const player = getRandomFromArray(selectedPlayers);
@@ -109,62 +111,97 @@ function displayResults() {
     selectedPlayers.splice(selectedPlayers.indexOf(player), 1);
   }
 
-  // --- エージェント割り当て ---
-  let roleOrder = [];
+  // --- ここからキャラ重複防止 ---
+  let availableAgents = [...allAgents];
+  let availableRolesAgents = {};
+  for (const role in roles) {
+    availableRolesAgents[role] = [...roles[role]];
+  }
+  // --- ここまで ---
+
+  // --- 基本構成のロール割り当てをランダム化 ---
+  let shuffledRoles = [];
   if (roleMode === "default") {
-    // 各ロールから1人ずつ + ランダムで1人
-    roleOrder = ["デュエリスト", "イニシエーター", "スモーク", "センチネル"];
-    if (playerNames.length > 4) {
-      roleOrder.push("random");
+    const roleKeys = Object.keys(roles);
+    shuffledRoles = shuffleArray(roleKeys).slice(0, playerNames.length);
+    // 5人未満なら余ったロールをランダムで追加
+    while (shuffledRoles.length < playerNames.length) {
+      shuffledRoles.push(getRandomFromArray(roleKeys));
     }
   }
+  // --- ここまで ---
+
+  // --- カスタム時、未選択ロールは毎回ランダムにする ---
+  if (roleMode === "custom") {
+    const roleKeys = Object.keys(roles);
+    selectedRoles = selectedRoles.map(role => {
+      // 空欄、null、"ロールを選択" の場合はランダム
+      if (!role || role === "" || role === "ロールを選択") {
+        return getRandomFromArray(roleKeys);
+      }
+      return role;
+    });
+  }
+  // --- ここまで ---
 
   playerNames.forEach((name, index) => {
     let agent;
-
     if (roleMode === "default") {
-      const role = roleOrder[index] || "random";
-      if (role === "random") {
+      const role = shuffledRoles[index];
+      if (availableRolesAgents[role].length === 0) {
         agent = getRandomFromArray(availableAgents);
       } else {
-        agent = getRandomFromArray(roles[role]);
+        agent = getRandomFromArray(availableRolesAgents[role]);
+        availableRolesAgents[role] = availableRolesAgents[role].filter(a => a !== agent);
+        availableAgents = availableAgents.filter(a => a !== agent);
       }
     } else if (roleMode === "random") {
       agent = getRandomFromArray(availableAgents);
+      availableAgents = availableAgents.filter(a => a !== agent);
     } else if (roleMode === "custom") {
-      let role = selectedRoles[index];
-      if (!role || role === "") {
-        // 未選択ならランダム
-        role = getRandomFromArray(Object.keys(roles));
+      const role = selectedRoles[index];
+      if (!role) {
+        agent = null;
+      } else if (availableRolesAgents[role] && availableRolesAgents[role].length > 0) {
+        agent = getRandomFromArray(availableRolesAgents[role]);
+        availableRolesAgents[role] = availableRolesAgents[role].filter(a => a !== agent);
+        availableAgents = availableAgents.filter(a => a !== agent);
+      } else {
+        agent = null;
       }
-      agent = getRandomFromArray(roles[role]);
     }
-
-    // --- 被り防止 ---
-    availableAgents.splice(availableAgents.indexOf(agent), 1);
 
     const constraint = constraintAssignments.find(c => c.player === name);
 
     const card = document.createElement("div");
     card.className = "player-card";
 
-    const agentFileName = getSafeFileName(agent);
-
+    const agentFileName = agent ? agent.replace("/", "") : "noagent";
     card.innerHTML = `
-      <img src="images/${agentFileName}.png" alt="${agent}の画像">
-      <div><strong>${name}</strong></div>
-      <div>${agent}</div>
-      <hr>
-      ${constraint ? `
-        <div class="rarity ${constraint.rarity}">${constraint.rarity}</div>
-        <div class="constraint-text ${constraint.rarity}">${constraint.text}</div>
-      ` : `
-        <div class="constraint-text NONE">縛りなし</div>
-      `}
+        <img src="images/${agentFileName}.png" alt="${agent ? agent : "未割り当て"}の画像">
+        <div><strong>${name}</strong></div>
+        <div>${agent ? agent : "未割り当て"}</div>
+        <hr>
+        ${constraint ? `
+            <div class="rarity ${constraint.rarity}">${constraint.rarity}</div>
+            <div class="constraint-text ${constraint.rarity}">${constraint.text}</div>
+        ` : `
+            <div class="constraint-text NONE">縛りなし</div>
+        `}
     `;
 
     container.appendChild(card);
   });
+}
+
+// 配列シャッフル関数
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 
